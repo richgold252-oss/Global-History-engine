@@ -11,6 +11,7 @@ from timeline_importer import (
     ImportConfig,
     TimelineValidationError,
     import_jsonl,
+    main,
     validate_event,
 )
 
@@ -63,6 +64,95 @@ class TimelineImporterTests(unittest.TestCase):
     def test_line_limit_is_enforced(self):
         with self.assertRaises(TimelineValidationError):
             import_jsonl(io.StringIO(json.dumps(VALID) + "\n"), config=ImportConfig(max_line_bytes=10))
+
+    def test_invalid_config_values_are_rejected(self):
+        with self.assertRaises(ValueError):
+            ImportConfig(batch_size=0)
+        with self.assertRaises(ValueError):
+            ImportConfig(max_line_bytes=0)
+        with self.assertRaises(ValueError):
+            ImportConfig(duplicate_policy="ignore")
+        with self.assertRaises(ValueError):
+            ImportConfig(on_error="skip")
+
+    def test_supported_partial_and_datetime_dates_are_accepted(self):
+        for event_date in ("1939", "1939-09", "1939-09-01T12:30:00Z"):
+            with self.subTest(event_date=event_date):
+                validate_event({**VALID, "date": event_date})
+
+    def test_invalid_dates_are_rejected(self):
+        for event_date in ("1939-99-01", "1939-02-30", "not-a-date"):
+            with self.subTest(event_date=event_date), self.assertRaises(TimelineValidationError):
+                validate_event({**VALID, "date": event_date})
+
+    def test_unknown_fields_and_missing_sources_are_rejected(self):
+        with self.assertRaises(TimelineValidationError):
+            validate_event({**VALID, "unexpected": True})
+        with self.assertRaises(TimelineValidationError):
+            validate_event({**VALID, "sources": []})
+        with self.assertRaises(TimelineValidationError):
+            validate_event({**VALID, "sources": "source"})
+
+    def test_invalid_source_metadata_is_rejected(self):
+        invalid_sources = [
+            [{"title": "Source", "url": "ftp://example.org"}],
+            [{"title": "Source", "url": "https://example.org", "published_at": "yesterday"}],
+            [{"title": "Source", "url": "https://example.org", "unknown": True}],
+        ]
+        for sources in invalid_sources:
+            with self.subTest(sources=sources), self.assertRaises(TimelineValidationError):
+                validate_event({**VALID, "sources": sources})
+
+    def test_location_and_media_validation(self):
+        invalid_locations = [
+            {"latitude": 91, "longitude": 0},
+            {"country_code": "usa"},
+            {"name": "Place", "unknown": True},
+            {},
+        ]
+        for location in invalid_locations:
+            with self.subTest(location=location), self.assertRaises(TimelineValidationError):
+                validate_event({**VALID, "location": location})
+        invalid_media = [
+            [{"type": "image", "url": "not-a-url"}],
+            [{"type": "spreadsheet", "url": "https://example.org/file"}],
+            [{"type": "image"}],
+            "media",
+        ]
+        for media in invalid_media:
+            with self.subTest(media=media), self.assertRaises(TimelineValidationError):
+                validate_event({**VALID, "media": media})
+
+    def test_array_metadata_and_timestamp_validation(self):
+        for field_name in ("people", "organizations", "tags"):
+            with self.subTest(field_name=field_name), self.assertRaises(TimelineValidationError):
+                validate_event({**VALID, field_name: ["same", "same"]})
+        with self.assertRaises(TimelineValidationError):
+            validate_event({**VALID, "updated_at": "not-a-timestamp"})
+        with self.assertRaises(TimelineValidationError):
+            validate_event({**VALID, "metadata": []})
+
+    def test_blank_lines_and_empty_input_are_handled(self):
+        summary = import_jsonl(io.StringIO("\n\n" + json.dumps(VALID) + "\n\n"))
+        self.assertEqual(summary.records_read, 1)
+        self.assertEqual(summary.records_imported, 1)
+        empty = import_jsonl(io.StringIO(""))
+        self.assertEqual(empty.records_read, 0)
+        self.assertEqual(empty.records_imported, 0)
+
+    def test_replace_policy_and_raise_error_policy(self):
+        content = "\n".join(json.dumps(VALID) for _ in range(2))
+        summary = import_jsonl(io.StringIO(content), config=ImportConfig(duplicate_policy="replace"))
+        self.assertEqual(summary.records_imported, 2)
+        with self.assertRaises(json.JSONDecodeError):
+            import_jsonl(io.StringIO("not-json\n"), config=ImportConfig(on_error="raise"))
+
+    def test_cli_success_and_missing_input(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "input.jsonl"
+            source.write_text(json.dumps(VALID) + "\n", encoding="utf-8")
+            self.assertEqual(main([str(source)]), 0)
+        self.assertEqual(main(["does-not-exist.jsonl"]), 1)
 
     def test_file_paths_are_supported(self):
         with tempfile.TemporaryDirectory() as directory:
