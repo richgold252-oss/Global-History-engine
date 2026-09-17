@@ -10,10 +10,12 @@ import argparse
 import json
 import re
 import sys
+from collections.abc import Callable, Iterable
+from contextlib import ExitStack, nullcontext
 from dataclasses import asdict, dataclass, field
 from datetime import date, datetime
 from pathlib import Path
-from typing import Any, Callable, Iterable, TextIO
+from typing import Any, TextIO
 from urllib.parse import urlparse
 
 _ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]*$")
@@ -218,15 +220,21 @@ def import_jsonl(
     config = config or ImportConfig()
     summary = ImportSummary(input_file=str(input_file) if not hasattr(input_file, "read") else "<stream>")
     seen_ids: set[str] = set()
-    close_input = close_output = close_reject = False
-    source = input_file if hasattr(input_file, "read") else open(input_file, "r", encoding="utf-8")
-    close_input = not hasattr(input_file, "read")
-    destination = None if output_file is None else (output_file if hasattr(output_file, "write") else open(output_file, "w", encoding="utf-8"))
-    close_output = destination is not None and not hasattr(output_file, "write")
-    rejects = None if reject_file is None else (reject_file if hasattr(reject_file, "write") else open(reject_file, "w", encoding="utf-8"))
-    close_reject = rejects is not None and not hasattr(reject_file, "write")
-    batch: list[dict[str, Any]] = []
-    try:
+    with ExitStack() as stack:
+        source = stack.enter_context(
+            nullcontext(input_file) if hasattr(input_file, "read") else open(input_file, encoding="utf-8")  # noqa: SIM115
+        )
+        destination = None
+        if output_file is not None:
+            destination = stack.enter_context(
+                nullcontext(output_file) if hasattr(output_file, "write") else open(output_file, "w", encoding="utf-8")  # noqa: SIM115
+            )
+        rejects = None
+        if reject_file is not None:
+            rejects = stack.enter_context(
+                nullcontext(reject_file) if hasattr(reject_file, "write") else open(reject_file, "w", encoding="utf-8")  # noqa: SIM115
+            )
+        batch: list[dict[str, Any]] = []
         for line_number, line in _iter_lines(source, config.max_line_bytes):
             if not line.strip():
                 continue
@@ -256,13 +264,6 @@ def import_jsonl(
             _emit_batch(batch, destination, on_batch)
             summary.records_imported += len(batch)
             batch.clear()
-    finally:
-        if close_input:
-            source.close()
-        if close_output and destination is not None:
-            destination.close()
-        if close_reject and rejects is not None:
-            rejects.close()
     return summary
 
 

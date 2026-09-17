@@ -1,14 +1,18 @@
 import io
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-import sys
 sys.path.insert(0, str(Path(__file__).parents[1] / "src"))
 
-from timeline_importer import ImportConfig, TimelineValidationError, import_jsonl, validate_event
-
+from timeline_importer import (
+    ImportConfig,
+    TimelineValidationError,
+    import_jsonl,
+    validate_event,
+)
 
 VALID = {
     "id": "event-1",
