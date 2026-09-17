@@ -15,6 +15,7 @@ What’s included
 - src/main.py (entrypoint)
 - src/timeline_importer.py (streaming importer and schema validation)
 - tests/test_timeline_importer.py (importer tests)
+- docs/TIMELINE_IMPORT.md (timeline schema and JSONL import contract)
 
 Quick start
 1. Clone the repo:
@@ -28,6 +29,9 @@ The importer accepts one event per JSONL line, validates `id`, `date`, `title`,
 `description`, and at least one HTTP(S) source, then writes valid records
 incrementally. Invalid and duplicate records are reported in the reject file;
 processing continues by default. Use `--strict` to stop at the first error.
+
+See [docs/TIMELINE_IMPORT.md](docs/TIMELINE_IMPORT.md) for the complete schema,
+JSONL examples, error behavior, and contributor checklist.
 
 Run the tests without third-party dependencies:
 
