@@ -1,15 +1,7 @@
-"""Starter placeholder for Global-History-engine.
+"""Command-line entrypoint for the Global-History-engine importer."""
 
-This is a minimal Python entrypoint to show repository structure.
-"""
-
-import sys
-
-
-def main():
-    print("Global-History-engine placeholder. Add your pipeline code here.")
+from timeline_importer import main
 
 
 if __name__ == "__main__":
-    main()
-    sys.exit(0)
+    raise SystemExit(main())
