@@ -8,9 +8,12 @@ __pycache__/
 *.pyo
 *.pyd
 .env
+.env.local
+.env.*.local
 .venv/
 env/
 venv/
+ENV/
 
 # Node
 node_modules/
@@ -21,7 +24,37 @@ yarn.lock
 # IDEs
 .vscode/
 .idea/
-
-# OS
 *.swp
 *.swo
+*.sublime-*
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Testing
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Build and distribution
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+
+# Data and outputs
+data/
+*.log
